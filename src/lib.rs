@@ -13,8 +13,14 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::thread;
 
+use once_cell::sync::Lazy;
+
 // Emprically a good number on an M1
-const LOOP_LIMIT: usize = 500;
+const LOOP_DEFAULT: u64 = 3000;
+static LOOP_LIMIT: Lazy<u64> = Lazy::new(|| {
+    let speed = sys_info::cpu_speed().unwrap_or(LOOP_DEFAULT);
+    speed / 12
+});
 
 /// Mutex implementation.
 pub struct Mutex<T: ?Sized> {
@@ -67,7 +73,7 @@ impl<T: ?Sized> Mutex<T> {
                     }
                 }
                 Err(_e) => {
-                    if loop_count > LOOP_LIMIT {
+                    if loop_count > *LOOP_LIMIT {
                         loop_count = 0;
                         thread::yield_now();
                     } else {

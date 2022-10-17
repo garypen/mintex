@@ -4,16 +4,17 @@
 //! The reason for this mutex existing is that I'd like a mutex which is
 //! quite lightweight and does not perform allocations.
 
-use std::{
-    cell::UnsafeCell,
-    fmt,
-    ops::{Deref, DerefMut},
-    sync::atomic::{AtomicBool, Ordering},
-    time::Duration,
-};
+use std::cell::UnsafeCell;
+use std::fmt;
+use std::hint;
+use std::ops::Deref;
+use std::ops::DerefMut;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::thread;
 
-// 200 microseconds is emprically chosen as a reasonable pause time.
-const SLEEP_DURATION: Duration = Duration::from_micros(200);
+// Emprically a good number on an M1
+const LOOP_LIMIT: usize = 500;
 
 /// Mutex implementation.
 pub struct Mutex<T: ?Sized> {
@@ -53,6 +54,7 @@ impl<T> Mutex<T> {
 impl<T: ?Sized> Mutex<T> {
     /// Acquire a lock which returns a RAII MutexGuard over the locked data.
     pub fn lock(&self) -> MutexGuard<'_, T> {
+        let mut loop_count = 0;
         loop {
             match self
                 .lock
@@ -65,18 +67,13 @@ impl<T: ?Sized> Mutex<T> {
                     }
                 }
                 Err(_e) => {
-                    // It is possible that we'll trigger a panic here.
-                    // If the thread is already panicking, then we may
-                    // hit a variant on:
-                    // https://github.com/rust-lang/rust/issues/102398
-                    // Not much I can do about that, Even if I check
-                    // [`std::thread::panicking()`] that won't help because
-                    // the check would be racy and the thread might panic
-                    // after the check.
-                    // You'll know that you've hit this problem if you
-                    // get a panic while panicking error. On MacOS/M1
-                    // that's a SIGTRAP, I think it's a SIGILL on Linux.
-                    std::thread::park_timeout(SLEEP_DURATION);
+                    if loop_count > LOOP_LIMIT {
+                        loop_count = 0;
+                        thread::yield_now();
+                    } else {
+                        loop_count += 1;
+                        hint::spin_loop();
+                    }
                 }
             }
         }
@@ -119,18 +116,7 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        match self
-            .mutex
-            .lock
-            .compare_exchange(true, false, Ordering::Acquire, Ordering::Relaxed)
-        {
-            Ok(v) => {
-                debug_assert!(v);
-            }
-            Err(e) => {
-                panic!("lock is broken!: {}", e);
-            }
-        }
+        self.mutex.lock.store(false, Ordering::Release);
     }
 }
 
@@ -155,7 +141,7 @@ mod tests {
 
     #[test]
     fn exercise_mutex_lock() {
-        const N: usize = 1000;
+        const N: usize = 100;
 
         // Spawn a few threads to increment a shared variable (non-atomically), and
         // let the main thread know once all increments are done.

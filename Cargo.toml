@@ -17,8 +17,3 @@ edition = "2021"
 [dependencies]
 once_cell = "1.15.0"
 sys-info = "0.9.1"
-
-[package]
-name = "trying"
-edition = "2021"
-

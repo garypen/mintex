@@ -9,7 +9,7 @@ license = "Apache-2.0"
 repository = "https://github.com/garypen/mintex"
 readme = "README.md"
 keywords = ["mutex", "spinlock"]
-categories = ["Concurrency"]
+categories = ["concurrency"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

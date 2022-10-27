@@ -13,7 +13,7 @@ The main reason for it to exist, is because I know it does not allocate memory d
 
 ```toml
 [dependencies]
-trying = "0.1"
+mintex = "0.1"
 ```
 
 ## License

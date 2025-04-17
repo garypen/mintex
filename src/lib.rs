@@ -43,9 +43,9 @@ impl<T: ?Sized + Default> Default for Mutex<T> {
 impl<T> Mutex<T> {
     #[inline]
     /// Create a new Mutex which wraps the provided data.
-    pub fn new(data: T) -> Self {
+    pub const fn new(data: T) -> Self {
         Self {
-            lock: Default::default(),
+            lock: AtomicBool::new(false),
             data: UnsafeCell::new(data),
         }
     }
